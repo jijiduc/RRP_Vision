@@ -1,11 +1,16 @@
 
+# rallyrobopilot/remote_controller.py
+
 from ursina import *
 import socket
-import select
 import numpy as np
+from flask import request, jsonify
 
-from flask import Flask, request, jsonify
-
+# --- ADDED FOR DEBUGGING ---
+import time
+import os
+from PIL import Image
+# ---------------------------
 
 from .sensing_message import SensingSnapshot, SensingSnapshotManager
 from .remote_commands import RemoteCommandParser
@@ -21,6 +26,8 @@ def printv(str):
 class RemoteController(Entity):
     def __init__(self, car = None, connection_port = 7654, flask_app=None):
         super().__init__()
+
+        os.makedirs('debug_frames', exist_ok=True)
 
         self.ip_address = "127.0.0.1"
         self.port = connection_port
@@ -74,31 +81,47 @@ class RemoteController(Entity):
                                          held_keys['s'] or held_keys["down arrow"],
                                          held_keys['a'] or held_keys["left arrow"],
                                          held_keys['d'] or held_keys["right arrow"])
-            snapshot.car_position = self.car.world_position
+            
+            snapshot.car_position = tuple(self.car.world_position)
             snapshot.car_speed = self.car.speed
             snapshot.car_angle = self.car.rotation_y
             snapshot.raycast_distances = self.car.multiray_sensor.collect_sensor_values()
 
-            #   Collect last rendered image
-            tex = base.win.getDisplayRegion(0).getScreenshot()
-            arr = tex.getRamImageAs("RGB")
-            data = np.frombuffer(arr, np.uint8)
-            image = data.reshape(tex.getYSize(), tex.getXSize(), 3)
-            image = image[::-1, :, :]#   Image arrives with inverted Y axis
+            # --- MODIFICATION ---
+            # The following block is the cause of the major FPS drop.
+            # Since your current model only uses raycast data, we can safely
+            # disable this to restore performance. We set the image to None.
+            
+            # tex = base.win.getDisplayRegion(0).getScreenshot()
+            # arr = tex.getRamImageAs("RGB")
+            # data = np.frombuffer(arr, np.uint8)
+            # image = data.reshape(tex.getYSize(), tex.getXSize(), 3)
+            # image = image[::-1, :, :]
 
-            snapshot.image = image
+            snapshot.image = None # Explicitly set to None
+            # --- END OF MODIFICATION ---
+
+            # --- ADDED FOR DEBUGGING ---
+            # This saves the image that was just captured into a file
+            # img_to_save = Image.fromarray(image)
+            # timestamp = int(time.time() * 1000)
+            # img_to_save.save(f"debug_frames/frame_{timestamp}.png")
+            # --- END OF DEBUGGING BLOCK ---
 
             msg_mngr = SensingSnapshotManager()
             data = msg_mngr.pack(snapshot)
 
-            self.connected_client.settimeout(0.01)
             try:
+                self.connected_client.settimeout(0.01)
                 self.connected_client.sendall(data)
-            except socket.error as e:
-                print(f"Socket error: {e}")
+            except (socket.error, BrokenPipeError) as e:
+                print(f"[INFO] Client disconnected. Cleaning up connection.")
+                self.connected_client.close()
+                self.connected_client = None
+                return
 
             self.last_sensing = time.time()
-
+            
     def get_sensing_data(self):
         current_controls = (held_keys['w'] or held_keys["up arrow"],
                             held_keys['s'] or held_keys["down arrow"],
@@ -213,11 +236,14 @@ class RemoteController(Entity):
             except Exception as e:
                 printv(e)
 
-
     def open_connection_socket(self):
         print("Waiting for connections")
         self.listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
+        # --- ADD THIS LINE ---
+        # Allow the operating system to reuse the port address immediately
+        self.listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        
         self.listen_socket.bind((self.ip_address, self.port))
-        # self.listen_socket.setblocking(False)
         self.listen_socket.settimeout(0.01)
         self.listen_socket.listen()
