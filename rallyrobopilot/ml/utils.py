@@ -1,9 +1,5 @@
 # rallyrobopilot/ml/utils.py
 
-# --- MODIFICATION: Use a non-interactive backend for Matplotlib ---
-# This line is crucial. It tells Matplotlib not to create a GUI window,
-# which resolves the conflict when running from the command line.
-# It must be called BEFORE importing pyplot.
 import matplotlib
 matplotlib.use('Agg')
 # --- END MODIFICATION ---

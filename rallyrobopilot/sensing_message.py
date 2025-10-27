@@ -14,7 +14,6 @@ class SensingSnapshot:
         self.car_angle = 0
         self.current_controls = (False, False, False, False)
 
-# --- MODIFIED CLASS: SensingSnapshotManager ---
 class SensingSnapshotManager:
     def __init__(self):
         self.pending_data = b''

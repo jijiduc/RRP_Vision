@@ -1,5 +1,6 @@
 .venv/
 rallyrobopilot/__pycache__/*
+rallyrobopilo/ml/pycache__/*
 rallyrobopilot.egg-info/*
 scripts/__pycache__/*
 __pycache__/*
