@@ -33,7 +33,7 @@ def prepare_game_app():
     # VeryHarderTrack
     # NotSoSimpleTrack
     # SimpleTrack
-    track_name = "VeryHarderTrack"
+    track_name = "VisualTrack"
     track = Track(track_name)
     print("loading assets after track creation")
     track.load_assets(global_models, global_texs)
